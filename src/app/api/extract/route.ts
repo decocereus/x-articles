@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { extractFromUrl, ExtractError } from "@/lib/extract";
+import { ExtractError } from "@/lib/extract/errors";
 import type { ExtractResponse } from "@/lib/extract/types";
 
 export const runtime = "nodejs";
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json(response, { status: 400 });
     }
 
+    const { extractFromUrl } = await import("@/lib/extract");
     const document = await extractFromUrl(url);
     const response: ExtractResponse = { ok: true, document };
 

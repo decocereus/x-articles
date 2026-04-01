@@ -1,9 +1,7 @@
-import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
-import TurndownService from "turndown";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
+import { ExtractError } from "./errors";
 import type { ExtractedDocument, ExtractedSourceType } from "./types";
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -38,20 +36,15 @@ const X_TWEET_RESULT_FIELD_TOGGLES = {
   withAuxiliaryUserLabels: false,
 } as const;
 
-const turndown = new TurndownService({
-  codeBlockStyle: "fenced",
-  headingStyle: "atx",
-  bulletListMarker: "-",
-});
+type DomDeps = {
+  JSDOM: typeof import("jsdom").JSDOM;
+  Readability: typeof import("@mozilla/readability").Readability;
+  turndown: {
+    turndown(input: string | Node): string;
+  };
+};
 
-turndown.remove(["script", "style", "noscript", "iframe", "form"]);
-
-export class ExtractError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ExtractError";
-  }
-}
+let domDepsPromise: Promise<DomDeps> | null = null;
 
 interface ExtractedBase {
   sourceType: ExtractedSourceType;
@@ -165,6 +158,7 @@ export async function extractFromUrl(input: string) {
 
 async function extractArticle(url: URL) {
   await assertSafeRemoteTarget(url);
+  const { JSDOM, Readability } = await getDomExtractionDeps();
 
   const response = await fetch(url, {
     headers: {
@@ -216,7 +210,7 @@ async function extractArticle(url: URL) {
   }
 
   const canonicalUrl = getCanonicalUrl(document, finalUrl);
-  const cleanedContent = cleanArticleContent(
+  const cleanedContent = await cleanArticleContent(
     readable.content,
     readable.textContent,
   );
@@ -369,7 +363,10 @@ function formatPlainText(document: ExtractedBase) {
   return lines.join("\n");
 }
 
-function cleanArticleContent(contentHtml: string | null | undefined, fallbackText: string) {
+async function cleanArticleContent(
+  contentHtml: string | null | undefined,
+  fallbackText: string,
+) {
   if (!contentHtml) {
     const text = cleanText(fallbackText);
 
@@ -379,6 +376,7 @@ function cleanArticleContent(contentHtml: string | null | undefined, fallbackTex
     };
   }
 
+  const { JSDOM, turndown } = await getDomExtractionDeps();
   const dom = new JSDOM(`<article>${contentHtml}</article>`);
   const root = dom.window.document.querySelector("article");
 
@@ -732,6 +730,7 @@ function applyInlineStylesToText(
 }
 
 async function extractXOEmbedFallback(url: URL) {
+  const { JSDOM } = await getDomExtractionDeps();
   const oEmbedUrl = new URL("https://publish.x.com/oembed");
   oEmbedUrl.searchParams.set("omit_script", "1");
   oEmbedUrl.searchParams.set("dnt", "true");
@@ -788,6 +787,33 @@ async function extractXOEmbedFallback(url: URL) {
     contentMarkdown: contentText,
     contentText,
   });
+}
+
+async function getDomExtractionDeps(): Promise<DomDeps> {
+  if (!domDepsPromise) {
+    domDepsPromise = Promise.all([
+      import("jsdom"),
+      import("@mozilla/readability"),
+      import("turndown"),
+    ]).then(([jsdomModule, readabilityModule, turndownModule]) => {
+      const TurndownService = turndownModule.default;
+      const turndown = new TurndownService({
+        codeBlockStyle: "fenced",
+        headingStyle: "atx",
+        bulletListMarker: "-",
+      });
+
+      turndown.remove(["script", "style", "noscript", "iframe", "form"]);
+
+      return {
+        JSDOM: jsdomModule.JSDOM,
+        Readability: readabilityModule.Readability,
+        turndown,
+      };
+    });
+  }
+
+  return domDepsPromise;
 }
 
 function getCanonicalUrl(document: Document, fallback: string) {

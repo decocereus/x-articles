@@ -93,6 +93,17 @@ export function ExtractorShell() {
         body: JSON.stringify({ url }),
       });
 
+      const contentType = response.headers.get("content-type") ?? "";
+
+      if (!contentType.includes("application/json")) {
+        setError(
+          response.status >= 500
+            ? "The server hit an internal error while extracting this URL."
+            : "The extractor returned an unexpected response for this URL.",
+        );
+        return;
+      }
+
       const payload = (await response.json()) as ExtractResponse;
 
       if (!response.ok || !payload.ok) {
@@ -105,7 +116,7 @@ export function ExtractorShell() {
       setResult(payload.document);
       setActiveTab("markdown");
     } catch {
-      setError("The extractor could not reach that page. Try another public URL.");
+      setError("The extractor could not reach the server. Try again in a moment.");
     } finally {
       setIsSubmitting(false);
     }
