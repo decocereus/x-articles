@@ -1,12 +1,9 @@
 import type { MetadataRoute } from "next";
 
-import { getAbsoluteUrl, getRequestSiteUrl, getSiteUrl } from "@/lib/site";
+import { resolveAbsoluteUrl } from "@/lib/site";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = getSiteUrl() ?? (await getRequestSiteUrl());
-  const homeUrl =
-    getAbsoluteUrl("/") ??
-    (siteUrl ? new URL("/", siteUrl).toString() : undefined);
+  const homeUrl = await resolveAbsoluteUrl("/");
 
   if (!homeUrl) {
     return [];

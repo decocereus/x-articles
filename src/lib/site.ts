@@ -3,7 +3,16 @@ import { headers } from "next/headers";
 export const APP_NAME = "xtract";
 export const APP_DESCRIPTION =
   "Paste a public X post or article URL and get clean, agent-ready markdown in one click.";
-export const DEFAULT_SITE_URL = "https://xtract.decocereus.com/";
+export const APP_X_HANDLE = "@decocereus";
+export const APP_REPOSITORY_URL = "https://github.com/decocereus/xtract";
+
+const SITE_URL_ENV_KEYS = [
+  "NEXT_PUBLIC_SITE_URL",
+  "SITE_URL",
+  "VERCEL_PROJECT_PRODUCTION_URL",
+  "VERCEL_URL",
+] as const;
+const LOCAL_DEV_SITE_URL = "http://localhost:3000/";
 
 export const APP_KEYWORDS = [
   "x extractor",
@@ -13,6 +22,18 @@ export const APP_KEYWORDS = [
   "web article extractor",
   "agent-ready markdown",
 ];
+
+function getSiteUrlFromEnv() {
+  for (const key of SITE_URL_ENV_KEYS) {
+    const value = process.env[key];
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
 
 function normalizeSiteUrl(rawUrl: string) {
   const normalizedUrl =
@@ -33,10 +54,12 @@ function normalizeSiteUrl(rawUrl: string) {
 
 export function getSiteUrl() {
   const rawUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
-    process.env.VERCEL_URL ??
-    DEFAULT_SITE_URL;
+    getSiteUrlFromEnv() ??
+    (process.env.NODE_ENV === "production" ? undefined : LOCAL_DEV_SITE_URL);
+
+  if (!rawUrl) {
+    return undefined;
+  }
 
   return normalizeSiteUrl(rawUrl);
 }
@@ -67,4 +90,24 @@ export async function getRequestSiteUrl() {
       : "https");
 
   return normalizeSiteUrl(`${protocol}://${host}`);
+}
+
+export async function resolveSiteUrl() {
+  return getSiteUrl() ?? (await getRequestSiteUrl());
+}
+
+export async function resolveAbsoluteUrl(path = "/") {
+  const absoluteUrl = getAbsoluteUrl(path);
+
+  if (absoluteUrl) {
+    return absoluteUrl;
+  }
+
+  const siteUrl = await resolveSiteUrl();
+
+  if (!siteUrl) {
+    return undefined;
+  }
+
+  return new URL(path, siteUrl).toString();
 }

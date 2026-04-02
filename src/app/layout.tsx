@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 // import { Agentation } from "agentation";
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -12,17 +14,17 @@ import {
   APP_DESCRIPTION,
   APP_KEYWORDS,
   APP_NAME,
-  getRequestSiteUrl,
-  getSiteUrl,
+  APP_REPOSITORY_URL,
+  APP_X_HANDLE,
+  resolveAbsoluteUrl,
+  resolveSiteUrl,
 } from "@/lib/site";
 
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const metadataBase = getSiteUrl() ?? (await getRequestSiteUrl());
-  const canonicalUrl = metadataBase
-    ? new URL("/", metadataBase).toString()
-    : "/";
+  const metadataBase = await resolveSiteUrl();
+  const canonicalUrl = (await resolveAbsoluteUrl("/")) ?? "/";
 
   return {
     metadataBase,
@@ -30,6 +32,9 @@ export async function generateMetadata(): Promise<Metadata> {
     title: APP_NAME,
     description: APP_DESCRIPTION,
     keywords: APP_KEYWORDS,
+    creator: APP_X_HANDLE,
+    publisher: APP_NAME,
+    authors: [{ name: APP_X_HANDLE, url: APP_REPOSITORY_URL }],
     alternates: {
       canonical: canonicalUrl,
     },
@@ -83,6 +88,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title: APP_NAME,
       description: APP_DESCRIPTION,
       images: ["/xtract-og-image.png"],
+      creator: APP_X_HANDLE,
     },
   };
 }
@@ -100,6 +106,8 @@ export default function RootLayout({
       >
         <ThemeProvider>
           {children}
+          <Analytics />
+          <SpeedInsights />
           {/*{process.env.NODE_ENV === "development" && <Agentation />}*/}
         </ThemeProvider>
       </body>

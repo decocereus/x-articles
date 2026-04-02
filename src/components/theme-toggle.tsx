@@ -5,57 +5,50 @@ import { MoonStar, SunMedium } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
+import {
+  applyTheme,
+  clearThemeTransitionStyles,
+  getNextTheme,
+  getThemeTransitionGeometry,
+  getViewTransition,
+  setThemeTransitionStyles,
+  shouldReduceThemeMotion,
+} from "@/lib/theme-transition";
 
 export function ThemeToggle() {
   const { setTheme } = useTheme();
 
   function handleToggle(event: React.MouseEvent<HTMLButtonElement>) {
     const root = document.documentElement;
-    const nextTheme = root.classList.contains("dark") ? "light" : "dark";
-    const rect = event.currentTarget.getBoundingClientRect();
-    const originX = event.clientX === 0 ? rect.left + rect.width / 2 : event.clientX;
-    const originY = event.clientY === 0 ? rect.top + rect.height / 2 : event.clientY;
-    const maxX = Math.max(originX, window.innerWidth - originX);
-    const maxY = Math.max(originY, window.innerHeight - originY);
-    const radius = Math.hypot(maxX, maxY);
+    const nextTheme = getNextTheme(root);
+    const geometry = getThemeTransitionGeometry(
+      event.currentTarget,
+      event.nativeEvent,
+    );
 
     const commitTheme = () => {
-      root.classList.toggle("dark", nextTheme === "dark");
-      root.style.colorScheme = nextTheme;
+      applyTheme(root, nextTheme);
 
       startTransition(() => {
         setTheme(nextTheme);
       });
     };
 
-    const motionReduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    const startViewTransition = (
-      document as Document & {
-        startViewTransition?: (callback: () => void | Promise<void>) => {
-          finished: Promise<void>;
-        };
-      }
-    ).startViewTransition;
+    const startViewTransition = getViewTransition(document);
 
-    if (!startViewTransition || motionReduced) {
+    if (!startViewTransition || shouldReduceThemeMotion()) {
       commitTheme();
       return;
     }
 
-    root.style.setProperty("--theme-transition-x", `${originX}px`);
-    root.style.setProperty("--theme-transition-y", `${originY}px`);
-    root.style.setProperty("--theme-transition-radius", `${radius}px`);
+    setThemeTransitionStyles(root, geometry);
 
     const transition = startViewTransition.call(document, () => {
       commitTheme();
     });
 
     transition.finished.finally(() => {
-      root.style.removeProperty("--theme-transition-x");
-      root.style.removeProperty("--theme-transition-y");
-      root.style.removeProperty("--theme-transition-radius");
+      clearThemeTransitionStyles(root);
     });
   }
 
